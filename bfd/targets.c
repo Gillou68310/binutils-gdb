@@ -756,6 +756,7 @@ extern const bfd_target i386_elf32_sol2_vec;
 extern const bfd_target i386_elf32_vxworks_vec;
 extern const bfd_target i386_mach_o_vec;
 extern const bfd_target i386_msdos_vec;
+extern const bfd_target i386_omf_vec;
 extern const bfd_target i386_pe_vec;
 extern const bfd_target i386_pe_big_vec;
 extern const bfd_target i386_pei_vec;
@@ -1105,6 +1106,7 @@ static const bfd_target * const _bfd_target_vector[] =
 	&i386_elf32_vxworks_vec,
 	&i386_mach_o_vec,
 	&i386_msdos_vec,
+    &i386_omf_vec,
 	&i386_pe_vec,
 	&i386_pe_big_vec,
 	&i386_pei_vec,
