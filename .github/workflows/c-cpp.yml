@@ -36,8 +36,18 @@ jobs:
           --with-zstd \
           --disable-nls \
           --with-mmap
-
+          --prefix=/opt/binutils
     - name: Build
       run: |
        cd build
        make
+       make install
+    - name: Package
+      run: |
+        tar czvf binutils-2.42-linux-x86_64.tar.gz -C /opt/binutils
+    - name: Upload Release
+      uses: actions/upload-artifact@v2
+      with:
+        name: binutils-release
+        path: binutils-2.42-linux-x86_64.tar.gz
+
