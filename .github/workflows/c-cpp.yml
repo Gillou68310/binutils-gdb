@@ -47,7 +47,7 @@ jobs:
        make install
     - name: Package
       run: |
-        tar czvf binutils-2.42-linux-x86_64.tar.gz -C $INSTALL_DIR
+        tar czvf binutils-2.42-linux-x86_64.tar.gz -C $INSTALL_DIR .
     - name: Upload Release
       uses: actions/upload-artifact@v2
       with:
