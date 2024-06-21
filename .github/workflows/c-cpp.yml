@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      INSTALL_DIR: "/tmp/binutils"
 
     steps:
     - uses: actions/checkout@v4
@@ -19,7 +21,7 @@ jobs:
         sudo apt-get install -y build-essential libgmp-dev libmpfr-dev
     - name: Configure
       run: |
-       mkdir install
+       mkdir $INSTALL_DIR
        mkdir build
        cd build
        ../configure \
@@ -36,8 +38,8 @@ jobs:
           --with-system-zlib \
           --with-zstd \
           --disable-nls \
-          --with-mmap
-          --prefix=../install
+          --with-mmap \
+          --prefix=$INSTALL_DIR
     - name: Build
       run: |
        cd build
@@ -45,7 +47,7 @@ jobs:
        make install
     - name: Package
       run: |
-        tar czvf binutils-2.42-linux-x86_64.tar.gz -C ../install
+        tar czvf binutils-2.42-linux-x86_64.tar.gz -C $INSTALL_DIR
     - name: Upload Release
       uses: actions/upload-artifact@v2
       with:
