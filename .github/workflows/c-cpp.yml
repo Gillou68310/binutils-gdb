@@ -1,10 +1,9 @@
-name: C/C++ CI
+name: Binutils-gdb build and release
 
 on:
   push:
-    branches: [ "release/*" ]
-  pull_request:
-    branches: [ "master" ]
+    tags:
+      - '*.*.*' # Triggers the workflow on version tags, e.g., 1.0.0
 
 jobs:
   build:
@@ -19,6 +18,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential libgmp-dev libmpfr-dev
+    - name: Extract tag name
+        id: extract_tag
+        run: echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
     - name: Configure
       run: |
        mkdir $INSTALL_DIR
@@ -45,12 +47,23 @@ jobs:
        cd build
        make
        make install
-    - name: Package
-      run: |
-        tar czvf binutils-2.42-linux-x86_64.tar.gz -C $INSTALL_DIR .
-    - name: Upload Release
-      uses: actions/upload-artifact@v2
+    - name: Create a release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: binutils-release
-        path: binutils-2.42-linux-x86_64.tar.gz
-
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+    - name: Package
+        run: |
+          tar czvf binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR .
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
