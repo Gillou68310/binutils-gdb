@@ -37,7 +37,7 @@ jobs:
           --with-zstd \
           --disable-nls \
           --with-mmap
-          --prefix=/opt/binutils
+          --prefix=../install
     - name: Build
       run: |
        cd build
