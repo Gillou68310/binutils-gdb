@@ -58,8 +58,8 @@ jobs:
         draft: false
         prerelease: false
     - name: Package
-        run: |
-          tar czvf binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR .
+      run: |
+        tar czvf binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR .
     - name: Upload release asset
       uses: actions/upload-release-asset@v1
       env:
