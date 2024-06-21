@@ -1,0 +1,43 @@
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libgmp-dev libmpfr-dev
+    - name: Configure
+      run: |
+       mkdir build
+       cd build
+       ../configure \
+          --disable-debug \
+          --disable-dependency-tracking \
+          --enable-deterministic-archives \
+          --disable-werror \
+          --enable-interwork \
+          --enable-multilib \
+          --enable-64-bit-bfd \
+          --enable-gold \
+          --enable-plugins \
+          --enable-targets=all \
+          --with-system-zlib \
+          --with-zstd \
+          --disable-nls \
+          --with-mmap
+
+    - name: Build
+      run: |
+       cd build
+       make
