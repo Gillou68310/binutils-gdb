@@ -19,6 +19,7 @@ jobs:
         sudo apt-get install -y build-essential libgmp-dev libmpfr-dev
     - name: Configure
       run: |
+       mkdir -p /opt/binutils
        mkdir build
        cd build
        ../configure \
