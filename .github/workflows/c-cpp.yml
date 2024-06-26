@@ -29,7 +29,8 @@ jobs:
        cd build
        ../configure \
           --disable-werror \
-          --with-mmap
+          --with-mmap \
+          --prefix=$INSTALL_DIR
 
     - name: Build
       run: |
