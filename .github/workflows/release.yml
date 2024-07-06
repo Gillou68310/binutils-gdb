@@ -3,7 +3,9 @@ name: Build, Release and Upload
 on:
   push:
     tags:
-      - '*.*.*' # Triggers the workflow on version tags, e.g., 1.0.0
+      - '*.*'        # Triggers the workflow on version tags, e.g., 2.42
+      - '*.*-*'      # Triggers the workflow on build tags, e.g., 2.42-build1 
+
   workflow_dispatch:
 
 jobs:
@@ -42,8 +44,8 @@ jobs:
 
     - name: Package
       run: |
+        tar -czvf omftools-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin/nm bin/objdump
         tar -czvf binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin include lib share
-        ls -l
 
     - name: Create a release
       id: create_release
@@ -64,4 +66,14 @@ jobs:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
         asset_name: binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
-        asset_content_type: application/gzip       
+        asset_content_type: application/gzip
+
+    - name: Upload release asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./omftools-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
+        asset_name: omftools-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
+        asset_content_type: application/gzip          
