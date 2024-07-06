@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and Upload
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-lates
+    runs-on: ubuntu-latest
     env:
       INSTALL_DIR: "/tmp/binutils"
 
@@ -45,6 +45,7 @@ jobs:
       run: |
         tar -czvf omftools-${{ github.run_id }}-${{ github.sha }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin/nm bin/objdump
         tar -czvf binutils-${{ github.run_id }}-${{ github.sha }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin include lib share
+        ls -l
         
     - name: Upload artifact
       uses: actions/upload-artifact@v2
