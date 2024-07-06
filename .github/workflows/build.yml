@@ -43,9 +43,8 @@ jobs:
 
     - name: Package
       run: |
-        tar -czvf omftools-${{ github.run_id }}-${{ github.sha }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin/nm bin/objdump
+        tar -czvf omftools-${{ github.run_id }}-${{ github.sha }}-linux-x86_64.tar.gz --transform='s|nm|omf-nm|' --transform='s|objdump|omf-objdump|' -C $INSTALL_DIR/bin nm objdump
         tar -czvf binutils-${{ github.run_id }}-${{ github.sha }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin include lib share
-        ls -l
         
     - name: Upload artifact
       uses: actions/upload-artifact@v2

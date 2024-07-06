@@ -6,8 +6,6 @@ on:
       - '*.*'        # Triggers the workflow on version tags, e.g., 2.42
       - '*.*-*'      # Triggers the workflow on build tags, e.g., 2.42-build1 
 
-  workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -44,7 +42,7 @@ jobs:
 
     - name: Package
       run: |
-        tar -czvf omftools-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin/nm bin/objdump
+        tar -czvf omftools-${{ env.TAG_NAME }}-linux-x86_64.tar.gz --transform='s|nm|omf-nm|' --transform='s|objdump|omf-objdump|' -C $INSTALL_DIR/bin nm objdump
         tar -czvf binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz -C $INSTALL_DIR bin include lib share
 
     - name: Create a release
@@ -58,7 +56,7 @@ jobs:
         draft: false
         prerelease: false
 
-    - name: Upload release asset
+    - name: Upload release asset - binutils
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,7 +66,7 @@ jobs:
         asset_name: binutils-${{ env.TAG_NAME }}-linux-x86_64.tar.gz
         asset_content_type: application/gzip
 
-    - name: Upload release asset
+    - name: Upload release asset - omftools
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
