@@ -2032,7 +2032,7 @@ i386omf_get_symbol_info (bfd *ignore_abfd ATTRIBUTE_UNUSED,
 #define i386omf_bfd_make_debug_symbol      _bfd_nosymbols_bfd_make_debug_symbol
 #define i386omf_read_minisymbols           _bfd_generic_read_minisymbols
 #define i386omf_minisymbol_to_symbol       _bfd_generic_minisymbol_to_symbol
-#define i386omf_bfd_is_target_special_symbol ((bool (*) (bfd *, asymbol *)) false)
+#define i386omf_bfd_is_target_special_symbol _bfd_bool_bfd_asymbol_false
 
 static long
 i386omf_get_reloc_upper_bound (bfd *abfd ATTRIBUTE_UNUSED, asection *sec)
