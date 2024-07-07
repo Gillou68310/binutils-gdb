@@ -2,9 +2,9 @@ name: Build and Upload
 
 on:
   push:
-    branches: [ master, release/* ]
+    branches: [ master, release/*, feature/* ]
   pull_request:
-    branches: [ master, release/* ]
+    branches: [ master, release/*, feature/* ]
   workflow_dispatch:
 
 jobs:
