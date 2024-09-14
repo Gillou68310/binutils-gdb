@@ -117,6 +117,7 @@
 #define OMF_COMENT_DEBUG_VERSION       0xf9
 #define OMF_COMENT_OPT_FLAGS           0xfa
 #define OMF_COMENT_LINKER_DIRECTIVE    0xfe
+#define OMF_COMENT_LINKER_DIRECTIVE2   0xfd
 #define OMF_COMENT_COMMAND_LINE        0xff
 #define OMF_COMENT_LIBRARY_COMMENT     0xff
 
@@ -690,6 +691,7 @@ i386omf_read_coment (bfd *abfd, bfd_byte const *p, bfd_size_type reclen)
       case OMF_COMENT_EASY_OMF:
       case OMF_COMENT_WAT_PROC_MODEL:
       case OMF_COMENT_LINKER_DIRECTIVE:
+      case OMF_COMENT_LINKER_DIRECTIVE2:
       case OMF_COMENT_DLL_ENTRY:
       case OMF_COMENT_WKEXT:
       case OMF_COMENT_LZEXT:
