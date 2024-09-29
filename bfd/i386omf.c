@@ -1153,7 +1153,8 @@ i386omf_read_fixupp(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
                 /* FRAME for this fixup is specified by a reference to a previous thread field. */
                 struct i386_fixup_thread *frame_thread;
 
-                (*_bfd_error_handler)("  F_bit: %x, frame_method: %0x, T_bit: %x, P_bit: %x, targt: %x\n",
+                _bfd_error_handler(_("  F_bit: %x, frame_method: %0x, T_bit: %x, P_bit: %x, targt: %x"),
+                // (*_bfd_error_handler)("  F_bit: %x, frame_method: %0x, T_bit: %x, P_bit: %x, targt: %x\n",
                                       (fixdata & 0x80) >> 0x7,              /* if F_bit=1. There is no frame datum field in the subrecord.*/
                                       (fixdata & OMF_FIX_DATA_FRAME_MASK) >> OMF_FIX_DATA_FRAME_SHIFT,
                                       (fixdata&0x8) >> 0x3,
@@ -1163,7 +1164,8 @@ i386omf_read_fixupp(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
 
                 /* the frame field contains a number between 0 and 3 that indicates the thread field containing the FRAME method. */
                 frame_thread = strtab_lookup(tdata->fixup_threads,(fixdata & OMF_FIX_DATA_FRAME_MASK) >> OMF_FIX_DATA_FRAME_SHIFT);
-                (*_bfd_error_handler)("  fixup FRAME thread_number: %x, method: %d, is_frame: %d, index: %x\n",
+                _bfd_error_handler(_("  fixup FRAME thread_number: %x, method: %d, is_frame: %d, index: %x"),
+                //(*_bfd_error_handler)("  fixup FRAME thread_number: %x, method: %d, is_frame: %d, index: %x\n",
                                       frame_thread->thread_number,
                                       frame_thread->method,
                                       frame_thread->is_frame,
@@ -1234,8 +1236,8 @@ i386omf_read_fixupp(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
                    thread field containing the TARGET method. In this case, the P bit, combined with the 2
                    low-order bits of the method field in the thread field, determines the TARGET thread. */
                 target_thread = strtab_lookup(tdata->fixup_threads,fixdata & (OMF_FIX_DATA_P_MASK + OMF_FIX_DATA_TARGT_MASK));
-
-                (*_bfd_error_handler)("  fixup TARGET thread_number: %x, method: %d, is_frame: %d, index: %x\n",
+                _bfd_error_handler(_("  fixup TARGET thread_number: %x, method: %d, is_frame: %d, index: %x"),
+                //(*_bfd_error_handler)("  fixup TARGET thread_number: %x, method: %d, is_frame: %d, index: %x\n",
                                       target_thread->thread_number,
                                       target_thread->method,
                                       target_thread->is_frame,
@@ -1397,7 +1399,7 @@ i386omf_read_comdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
     while (reclen)
     {
         struct i386omf_symbol *extdef;
-        bfd_size_type slen, ssize;
+        bfd_size_type slen, dsize, dnum;
         int data_segment_type;
 
         extdef = bfd_alloc (abfd, sizeof (*extdef));
@@ -1413,14 +1415,21 @@ i386omf_read_comdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
             bfd_set_error(bfd_error_wrong_format);
             return false;
         }
+        fprintf(stderr, "COMDEF read: 0s", &extdef->name);
         p += slen;
         reclen -= slen;
 
         if (!i386omf_read_index (abfd, &extdef->type_index, &p, &reclen))
             return false;
-        // TODO fix this to read properly FAR variables data segment type=0x61
+
         data_segment_type = bfd_get_8 (abfd, p++);
-        ssize = bfd_get_8 (abfd, p++);
+
+        if (data_segment_type == OMF_COMDEF_DATA_SEG_TYPE_FAR) {
+            dnum = bfd_get_8 (abfd, p++);
+            reclen -= 1;
+        }
+
+        dsize = bfd_get_8 (abfd, p++);
         reclen -= 2;
 
         extdef->base.name = extdef->name.data;
