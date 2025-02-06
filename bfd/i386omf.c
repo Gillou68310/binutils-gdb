@@ -236,6 +236,7 @@ struct i386omf_segment {
   struct bfd_section *asect;
   struct strtab *relocs;
   struct strtab *pubdef;
+  struct strtab *linnums;
   int combination;
   int name_index;
   int class_index;
@@ -294,6 +295,11 @@ struct i386_fixup_thread {
   int thread_number;
   bool is_frame;
   int method;
+};
+
+struct i386omf_linnum {
+  int line_number;
+  int line_number_offset;
 };
 
 enum reloc_type
@@ -880,6 +886,52 @@ i386omf_read_pubdef (bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is3
 }
 
 static bool
+i386omf_read_linnum (bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is32)
+{
+  struct i386omf_obj_data *tdata = abfd->tdata.any;
+  struct i386omf_segment *seg;
+  int base_group, base_segment;
+
+  if (!i386omf_read_index (abfd, &base_group, &p, &reclen))
+    return false;
+  if (!i386omf_read_index (abfd, &base_segment, &p, &reclen))
+    return false;
+
+  seg = strtab_lookup (tdata->segdef, base_segment);
+  if (base_group != OMF_GRPDEF_NONE)
+    (*_bfd_error_handler) ("LINNUM has nonzero base group %d", base_group);
+
+  while (reclen)
+  {
+    struct i386omf_linnum *linnum;
+
+    linnum = bfd_alloc (abfd, sizeof (*linnum));
+    if (linnum == NULL)
+	    return false;
+
+    linnum->line_number = (int) bfd_get_16(abfd, p);
+    if (linnum->line_number < 0)
+      (*_bfd_error_handler) ("LINNUM has negative line number %d", linnum->line_number);
+    p += 2;
+    reclen -= 2;
+
+    if (is32) {
+      linnum->line_number_offset = (int) bfd_get_32(abfd, p);
+      p += 4;
+      reclen -= 4;
+    } else {
+      linnum->line_number_offset = (int) bfd_get_16(abfd, p);
+      p += 2;
+      reclen -= 2;
+    }
+
+    strtab_add (seg->linnums, linnum);
+  }
+
+  return true;
+}
+
+static bool
 i386omf_read_lnames (bfd *abfd, bfd_byte const *p, bfd_size_type reclen)
 {
   struct i386omf_obj_data *tdata = abfd->tdata.any;
@@ -976,6 +1028,10 @@ i386omf_read_segdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is32
 
         seg->relocs = strtab_new(abfd);
         if (seg->relocs == NULL)
+            return false;
+
+        seg->linnums = strtab_new(abfd);
+        if (seg->linnums == NULL)
             return false;
 
         strtab_add(tdata->segdef, seg);
@@ -1664,7 +1720,7 @@ process_record (bfd *abfd,
 	break;
       case OMF_RECORD_LINNUM:
       case OMF_RECORD_LINNUM386:
-	record_ok = true; /* Line numbers record.  Too lazy now. */
+	record_ok = i386omf_read_linnum (abfd, p, reclen, rectype & 1);
 	break;
       case OMF_RECORD_LNAMES: /* List of names. */
 	record_ok = i386omf_read_lnames (abfd, p, reclen);
@@ -1767,6 +1823,7 @@ i386omf_teardown_tdata (bfd *abfd)
 	{
 	  strtab_free (seg->relocs);
 	  strtab_free (seg->pubdef);
+	  strtab_free (seg->linnums);
 	}
     }
 
@@ -2128,12 +2185,41 @@ i386omf_get_symbol_info (bfd *ignore_abfd ATTRIBUTE_UNUSED,
 
 #define i386omf_bfd_is_local_label_name     bfd_generic_is_local_label_name
 #define i386omf_get_lineno                 _bfd_nosymbols_get_lineno
-#define i386omf_find_nearest_line          _bfd_nosymbols_find_nearest_line
 #define i386omf_find_inliner_info          _bfd_nosymbols_find_inliner_info
 #define i386omf_bfd_make_debug_symbol      _bfd_nosymbols_bfd_make_debug_symbol
 #define i386omf_read_minisymbols           _bfd_generic_read_minisymbols
 #define i386omf_minisymbol_to_symbol       _bfd_generic_minisymbol_to_symbol
 #define i386omf_bfd_is_target_special_symbol _bfd_bool_bfd_asymbol_false
+
+bool
+i386omf_find_nearest_line (bfd *abfd,
+			    asymbol **symbols,
+			    asection *section,
+			    bfd_vma offset,
+			    const char **filename_ptr,
+			    const char **functionname_ptr,
+			    unsigned int *line_ptr,
+			    unsigned int *discriminator_ptr)
+{
+  struct i386omf_obj_data *tdata = abfd->tdata.any;
+  struct i386omf_segment *seg = section->used_by_bfd;
+  struct i386omf_linnum *linnum;
+  int i;
+
+  *filename_ptr = tdata->module_name.data;
+  *functionname_ptr = NULL;
+  *line_ptr = 0;
+  *discriminator_ptr = 0;
+
+  for (i = 0; (linnum = strtab_lookup (seg->linnums, i)) != NULL; i++) {
+    if (offset == linnum->line_number_offset) {
+      *line_ptr = linnum->line_number;
+      break;
+    }
+  }
+
+  return true;
+}
 
 static long
 i386omf_get_reloc_upper_bound (bfd *abfd ATTRIBUTE_UNUSED, asection *sec)
