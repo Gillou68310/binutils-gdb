@@ -138,6 +138,7 @@ static bool extended_color_output = false; /* --visualize-jumps=extended-color. 
 static int process_links = false;       /* --process-links.  */
 static int show_all_symbols;            /* --show-all-symbols.  */
 static bool decompressed_dumps = false; /* -Z, --decompress.  */
+static int no_objects;		/* --no-objects */
 
 static enum color_selection
   {
@@ -444,7 +445,9 @@ usage (FILE *stream, int status)
       fprintf (stream, _("\
       --disassembler-color=on        Enable disassembler color output.\n"));
       fprintf (stream, _("\
-      --disassembler-color=extended  Use 8-bit colors in disassembler output.\n\n"));
+      --disassembler-color=extended  Use 8-bit colors in disassembler output.\n"));
+      fprintf (stream, _("\
+      --no-objects                   Do not dump object symbols\n\n"));
 
       list_supported_targets (program_name, stream);
       list_supported_architectures (program_name, stream);
@@ -558,6 +561,7 @@ static struct option long_options[]=
   {"visualize-jumps", optional_argument, 0, OPTION_VISUALIZE_JUMPS},
   {"wide", no_argument, NULL, 'w'},
   {"disassembler-color", required_argument, NULL, OPTION_DISASSEMBLER_COLOR},
+  {"no-objects", no_argument, &no_objects, 1},
   {NULL, no_argument, NULL, 0}
 };
 
@@ -4031,7 +4035,14 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
       else
 	insns = false;
 
-      if (do_print)
+  if(!insns && no_objects)
+  {
+    while (rel_pp < rel_ppend
+    && (*rel_pp)->address < rel_offset + nextstop_offset)
+      ++rel_pp;
+  }
+
+  if (do_print && (insns || !no_objects))
 	{
 	  /* Resolve symbol name.  */
 	  if (visualize_jumps && abfd && sym && sym->name)
