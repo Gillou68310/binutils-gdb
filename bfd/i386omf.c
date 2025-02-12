@@ -957,6 +957,32 @@ i386omf_read_lnames (bfd *abfd, bfd_byte const *p, bfd_size_type reclen)
   return true;
 }
 
+static char*
+get_section_name(bfd *abfd, const char *name) {
+  struct i386omf_obj_data *tdata = abfd->tdata.any;
+  struct i386omf_segment *seg;
+  struct i386omf_symbol *seg_sym;
+  char *seg_name = (char*)name;
+  int i;
+  int j = 0;
+
+  for (i = 1; (seg = strtab_lookup (tdata->segdef, i)) != NULL; i++)
+  {
+    seg_sym = (struct i386omf_symbol *) seg->asect->symbol;
+    if(!strcmp(seg_sym->name.data, name))
+      j++;
+  }
+
+  if (j != 0)
+  {
+    seg_name = bfd_alloc(abfd, strlen(name) + 16);
+    if (seg_name == NULL)
+      return NULL;
+    sprintf(seg_name, "%s%d", name, j);
+  }
+  return seg_name;
+}
+
 static bool
 i386omf_read_segdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is32) {
     struct i386omf_obj_data *tdata = abfd->tdata.any;
@@ -1034,8 +1060,6 @@ i386omf_read_segdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is32
         if (seg->linnums == NULL)
             return false;
 
-        strtab_add(tdata->segdef, seg);
-
         segment_name = i386omf_lookup_string(tdata->lnames,
                                              name_index,
                                              "UNNAMED");
@@ -1044,18 +1068,16 @@ i386omf_read_segdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen, int is32
             return false;
         }
 
-        seg->asect = bfd_make_section_anyway(abfd, segment_name);
+        seg->asect = bfd_make_section_anyway(abfd, get_section_name(abfd, segment_name));
         seg_sym = (struct i386omf_symbol *) seg->asect->symbol;
         seg_sym->name.len = strlen(segment_name);
-        seg_sym->name.data = bfd_alloc(abfd, seg_sym->name.len + 1);
-        if (seg_sym->name.data == NULL)
-            return false;
-        strcpy(seg_sym->name.data, segment_name);
+        seg_sym->name.data = (char*)segment_name;
         seg_sym->type_index = 0;
         seg_sym->seg = seg;
         seg_sym->group = NULL;
         seg->asect->used_by_bfd = seg;
         seg->asect->size = seglen;
+        strtab_add(tdata->segdef, seg);
 
         /* Use class name to guess if section should be SEC_CODE or SEC_DATA. */
         if (strstr(i386omf_lookup_string(tdata->lnames, class_index, ""),
@@ -1473,7 +1495,7 @@ i386omf_read_comdef(bfd *abfd, bfd_byte const *p, bfd_size_type reclen) {
             bfd_set_error(bfd_error_wrong_format);
             return false;
         }
-        fprintf(stderr, "COMDEF read: 0s", &extdef->name);
+        fprintf(stderr, "COMDEF read: %s", &extdef->name);
         p += slen;
         reclen -= slen;
 
@@ -1838,50 +1860,150 @@ i386omf_teardown_tdata (bfd *abfd)
 #endif
 }
 
+static int
+find_jump_table_size (struct i386omf_relent **relocs, int count, const char *segname, int jpt_offset)
+{
+  struct i386omf_relent *relent;
+  int i;
+  int size = 0;
+  int addr = 0;
+
+  for (i = 0; i < count; i++)
+  {
+    relent = relocs[i];
+    addr = (int)relent->base.address;
+
+    if (relent->base.howto->type != R_I386OMF_OFF16 && relent->base.howto->type != R_I386OMF_OFF32)
+      continue;
+
+    if (relent->base.howto->pc_relative || strcmp(relent->symbol->name, segname))
+      continue;
+
+    if (addr == jpt_offset)
+    {
+      size = 1<<bfd_get_reloc_size (relent->base.howto);
+    }
+    else if(size != 0)
+    {
+      if (addr == jpt_offset+size)
+        size += 1<<bfd_get_reloc_size (relent->base.howto);
+      else
+        return size;
+    }
+  }
+  return size;
+}
+
+static int
+compare_relocs (const void *ap, const void *bp)
+{
+  const struct i386omf_relent *a = * (const struct i386omf_relent **) ap;
+  const struct i386omf_relent *b = * (const struct i386omf_relent **) bp;
+
+  if (a->base.address > b->base.address)
+    return 1;
+  else if (a->base.address < b->base.address)
+    return -1;
+
+  /* So that associated relocations tied to the same address show up
+     in the correct order, we don't do any further sorting.  */
+  if (a > b)
+    return 1;
+  else if (a < b)
+    return -1;
+  else
+    return 0;
+}
+
 static bool
 add_fake_jump_table_sym (bfd *abfd)
 {
   struct i386omf_obj_data *tdata = abfd->tdata.any;
   struct i386omf_segment *seg;
   struct i386omf_relent *relent;
+  struct i386omf_relent **relocs;
   struct i386omf_symbol *pubdef;
   bfd_byte const *pp;
-  int i,j,offset;
+  int i,j,offset,rel_count;
 
   for (i = 1; (seg = strtab_lookup (tdata->segdef, i)) != NULL; i++)
   {
+    rel_count = strtab_size(seg->relocs);
+    relocs = malloc (sizeof (struct i386omf_relent *)*rel_count);
+    if (relocs == NULL)
+        return false;
+
     for (j = 0; (relent = strtab_lookup (seg->relocs, j)) != NULL; j++)
+      relocs[j] = relent;
+    qsort (relocs, rel_count, sizeof (struct i386omf_relent *), compare_relocs);
+
+    for (j = 0; j < rel_count; j++)
     {
-      /*OFF16	CODE_SEGMENT_TEXT*/
-      if (relent->base.howto->type == R_I386OMF_OFF16 &&
-          !relent->base.howto->pc_relative &&
-          !strcmp(relent->symbol->name, seg->asect->name))
+      relent = relocs[j];
+      if (relent->base.howto->type != R_I386OMF_OFF16 && relent->base.howto->type != R_I386OMF_OFF32)
+        continue;
+
+      if (relent->base.howto->pc_relative || strcmp(relent->symbol->name, seg->asect->name))
+        continue;
+      
+      pp = &seg->asect->contents[relent->base.address];
+
+      /*jmp *%cs:offset(%reg)*/
+      if(bfd_get_8(abfd, pp-3) != 0x2E) /*cs prefix*/
+        continue;
+      if(bfd_get_8(abfd, pp-2) != 0xFF) /*jmp*/
+        continue;
+
+      pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
+      pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
+      if (pubdef->base.name == NULL)
+        return false;
+
+      if (relent->base.howto->type == R_I386OMF_OFF16)
       {
-        pp = &seg->asect->contents[relent->base.address];
-
-        /*jmp *%cs:offset(%reg)*/
-        if(bfd_get_8(abfd, pp-3) != 0x2E) /*cs prefix*/
-          continue;
-        if(bfd_get_8(abfd, pp-2) != 0xFF) /*jmp*/
-          continue;
-
         offset = bfd_get_16(abfd, pp);
-        pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
-
-        pubdef->base.name = bfd_alloc (abfd, 16);
-        if (pubdef->base.name == NULL)
-          break;
-          
-        sprintf(pubdef->base.name, "jpt_%.4X", offset);
-        pubdef->base.flags |= BSF_OBJECT;
-        pubdef->base.value = offset;
-        pubdef->seg = seg;
-        pubdef->base.section = pubdef->seg->asect;
-        pubdef->group = NULL; /*TODO?*/
-        strtab_add (seg->pubdef, pubdef);
+        sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_start", seg->asect->name, offset);
       }
+      else
+      {
+        offset = bfd_get_32(abfd, pp);
+        sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_start", seg->asect->name, offset);
+      }
+
+      pubdef->name.data = (char*)pubdef->base.name;
+      pubdef->name.len = strlen(pubdef->base.name);
+      pubdef->base.flags |= BSF_OBJECT;
+      pubdef->base.value = offset;
+      pubdef->seg = seg;
+      pubdef->base.section = pubdef->seg->asect;
+      pubdef->group = NULL; /*TODO?*/
+      strtab_add (seg->pubdef, pubdef);
+
+      offset = find_jump_table_size(relocs, rel_count, seg->asect->name, offset);
+      offset += pubdef->base.value;
+
+      pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
+      pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
+      if (pubdef->base.name == NULL)
+        return false;
+
+      if (relent->base.howto->type == R_I386OMF_OFF16)
+        sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_end", seg->asect->name, offset);
+      else
+        sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_end", seg->asect->name, offset);
+
+      pubdef->name.data = (char*)pubdef->base.name;
+      pubdef->name.len = strlen(pubdef->base.name);
+      pubdef->base.flags |= BSF_FUNCTION;
+      pubdef->base.value = offset;
+      pubdef->seg = seg;
+      pubdef->base.section = pubdef->seg->asect;
+      pubdef->group = NULL; /*TODO?*/
+      strtab_add (seg->pubdef, pubdef);
     }
+    free(relocs);
   }
+  return true;
 }
 
 static bool
@@ -1962,7 +2084,11 @@ i386omf_readobject (bfd *abfd, bfd_size_type osize, unsigned long *machine)
       return false;
     }
 
-  add_fake_jump_table_sym(abfd);
+  if(!add_fake_jump_table_sym(abfd))
+  {
+    (*_bfd_error_handler) ("Failed to add fake jump table symbols");
+    return false;
+  }
   return true;
 }
 
@@ -2240,7 +2366,7 @@ i386omf_get_symbol_info (bfd *ignore_abfd ATTRIBUTE_UNUSED,
 
 bool
 i386omf_find_nearest_line (bfd *abfd,
-			    asymbol **symbols,
+			    asymbol **symbols ATTRIBUTE_UNUSED,
 			    asection *section,
 			    bfd_vma offset,
 			    const char **filename_ptr,
