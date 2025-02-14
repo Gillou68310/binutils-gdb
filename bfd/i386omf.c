@@ -1915,6 +1915,20 @@ compare_relocs (const void *ap, const void *bp)
     return 0;
 }
 
+static struct i386omf_symbol *
+symbol_exists (struct i386omf_segment *seg, int offset)
+{
+  struct i386omf_symbol *sym;
+  int i;
+
+  for (i = 0; (sym = strtab_lookup (seg->pubdef, i)) != NULL; i++)
+  {
+    if (sym->base.value == offset)
+      return sym;
+  }
+  return NULL;
+}
+
 static bool
 add_fake_jump_table_sym (bfd *abfd)
 {
@@ -1954,52 +1968,63 @@ add_fake_jump_table_sym (bfd *abfd)
       if(bfd_get_8(abfd, pp-2) != 0xFF) /*jmp*/
         continue;
 
-      pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
-      pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
-      if (pubdef->base.name == NULL)
-        return false;
-
       if (relent->base.howto->type == R_I386OMF_OFF16)
-      {
         offset = bfd_get_16(abfd, pp);
-        sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_start", seg->asect->name, offset);
+      else
+        offset = bfd_get_32(abfd, pp);
+
+      pubdef = symbol_exists(seg, offset);
+      if (pubdef != NULL)
+      {
+        pubdef->base.flags |= BSF_OBJECT;
       }
       else
       {
-        offset = bfd_get_32(abfd, pp);
-        sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_start", seg->asect->name, offset);
+        pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
+        pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
+        if (pubdef->base.name == NULL)
+          return false;
+        
+        if (relent->base.howto->type == R_I386OMF_OFF16)
+          sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_start", seg->asect->name, offset);
+        else
+          sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_start", seg->asect->name, offset);
+        
+        pubdef->name.data = (char*)pubdef->base.name;
+        pubdef->name.len = strlen(pubdef->base.name);
+        pubdef->base.flags |= BSF_OBJECT;
+        pubdef->base.value = offset;
+        pubdef->seg = seg;
+        pubdef->base.section = pubdef->seg->asect;
+        pubdef->group = NULL; /*TODO?*/
+        strtab_add (seg->pubdef, pubdef);
       }
-
-      pubdef->name.data = (char*)pubdef->base.name;
-      pubdef->name.len = strlen(pubdef->base.name);
-      pubdef->base.flags |= BSF_OBJECT;
-      pubdef->base.value = offset;
-      pubdef->seg = seg;
-      pubdef->base.section = pubdef->seg->asect;
-      pubdef->group = NULL; /*TODO?*/
-      strtab_add (seg->pubdef, pubdef);
 
       offset = find_jump_table_size(relocs, rel_count, seg->asect->name, offset);
       offset += pubdef->base.value;
 
-      pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
-      pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
-      if (pubdef->base.name == NULL)
-        return false;
+      pubdef = symbol_exists(seg, offset);
+      if (pubdef == NULL)
+      {
+        pubdef = (struct i386omf_symbol *) bfd_make_empty_symbol (abfd);
+        pubdef->base.name = bfd_alloc (abfd, strlen(seg->asect->name)+32);
+        if (pubdef->base.name == NULL)
+          return false;
 
-      if (relent->base.howto->type == R_I386OMF_OFF16)
-        sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_end", seg->asect->name, offset);
-      else
-        sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_end", seg->asect->name, offset);
+        if (relent->base.howto->type == R_I386OMF_OFF16)
+          sprintf((char*)pubdef->base.name, "%s_jpt_%.4X_end", seg->asect->name, offset);
+        else
+          sprintf((char*)pubdef->base.name, "%s_jpt_%.8X_end", seg->asect->name, offset);
 
-      pubdef->name.data = (char*)pubdef->base.name;
-      pubdef->name.len = strlen(pubdef->base.name);
-      pubdef->base.flags |= BSF_FUNCTION;
-      pubdef->base.value = offset;
-      pubdef->seg = seg;
-      pubdef->base.section = pubdef->seg->asect;
-      pubdef->group = NULL; /*TODO?*/
-      strtab_add (seg->pubdef, pubdef);
+        pubdef->name.data = (char*)pubdef->base.name;
+        pubdef->name.len = strlen(pubdef->base.name);
+        pubdef->base.flags |= BSF_LOCAL;
+        pubdef->base.value = offset;
+        pubdef->seg = seg;
+        pubdef->base.section = pubdef->seg->asect;
+        pubdef->group = NULL; /*TODO?*/
+        strtab_add (seg->pubdef, pubdef);
+      }
     }
     free(relocs);
   }
